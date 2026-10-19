@@ -5,6 +5,7 @@ Proxy Level Up Capital — deploy no Render
   /calendar?week=thisweek   → calendário econômico ForexFactory (semana atual)
   /calendar?week=nextweek   → semana seguinte (quando já publicada)
   /health                   → status
+  /exchtest                 → teste: as corretoras aceitam este servidor? (exchtest.py, chave falsa)
 O calendário fica em cache por 30 min no servidor (o ForexFactory bloqueia
 quem consulta o feed muitas vezes), então o dashboard pode pedir à vontade.
 """
@@ -119,6 +120,20 @@ class ProxyHandler(BaseHTTPRequestHandler):
             status, body = fetch_calendar(week)
             self.send_json(status, body)
 
+        elif parsed.path == "/exchtest":
+            # teste das corretoras a partir deste servidor (import só aqui: um erro não afeta as outras rotas)
+            try:
+                import exchtest
+                status, ctype, body = exchtest.handle(params)
+            except Exception as e:
+                status, ctype, body = 500, "text/plain; charset=utf-8", f"erro no teste: {e}".encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
         elif parsed.path == "/health":
             self.send_json(200, json.dumps({"status": "ok"}).encode())
 
@@ -126,7 +141,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
-            self.wfile.write(b"Level Up Capital Proxy - OK (/quote, /calendar)")
+            self.wfile.write(b"Level Up Capital Proxy - OK (/quote, /calendar, /exchtest)")
 
         else:
             self.send_error(404)
